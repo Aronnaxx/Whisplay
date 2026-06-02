@@ -1,0 +1,11 @@
+[project]
+name = "whisplay"
+version = "0.1.0"
+description = "Driver and example apps for the Whisplay HAT"
+requires-python = ">=3.8"
+dependencies = [
+    "pygame",
+    "Pillow",
+    "spidev",
+    "gpiod",
+]
