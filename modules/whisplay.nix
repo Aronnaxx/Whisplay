@@ -97,6 +97,14 @@ in {
     {
       boot.kernelModules = [ "i2c-dev" "snd-soc-wm8960" ];
 
+      # The LCD pushes a full 134 KB framebuffer per refresh over SPI. spidev's
+      # default 4 KB transfer buffer splits that into ~33 syscalls/frame, which
+      # is the dominant source of display lag on this SoC. Bump it so a frame is
+      # one (DMA-able) transfer. Set via both paths since spidev may be built-in
+      # (kernel cmdline) or a loadable module (modprobe option).
+      boot.kernelParams = [ "spidev.bufsiz=131072" ];
+      boot.extraModprobeConfig = "options spidev bufsiz=131072";
+
       # NixOS doesn't create these by default; the daemon's SupplementaryGroups
       # reference them, and systemd refuses to start a service with a missing
       # group (exit 216/GROUP).
@@ -120,12 +128,21 @@ in {
       # The daemon's Bluetooth pairing agent / BT app need the stack present.
       hardware.bluetooth.enable = lib.mkDefault true;
 
-      # Default ALSA to the WM8960 card (sound.enable was removed in 25.05).
+      # Default ALSA to the WM8960 via a `plug` chain so apps that request a
+      # non-native format work. The WM8960 link is stereo-only (2ch, S16/24/32,
+      # 8–48 kHz); the games and test clips are mono, so without `plug` they
+      # fail with "Unable to install hw params". `type hw` (no plug) is the
+      # trap. mkForce because some base images (e.g. fcOS) ship a `fromenv`
+      # asound.conf that otherwise wins and resolves to a broken empty slave;
+      # on a Whisplay device the WM8960 is the intended default sink/source.
       hardware.alsa.enable = lib.mkDefault true;
-      environment.etc."asound.conf".text = lib.mkDefault ''
+      environment.etc."asound.conf".text = lib.mkForce ''
         pcm.!default {
-          type hw
-          card wm8960soundcard
+          type plug
+          slave.pcm {
+            type hw
+            card wm8960soundcard
+          }
         }
         ctl.!default {
           type hw
@@ -155,11 +172,17 @@ in {
             exit 0
           fi
           amx() { amixer -c "$card" -q -- "$@" || true; }
-          amx sset 'Headphone' 100% unmute
-          amx sset 'Speaker' 100% unmute
-          amx sset 'Playback' 100% unmute
+          # Output routing — matches PiSugar's install_radxa_zero3w.sh exactly.
+          # 'Speaker DC'/'Speaker AC' are the WM8960 class-D boost gains; without
+          # them the speaker amp stays silent. Values are raw register units.
           amx sset 'Left Output Mixer PCM' on
           amx sset 'Right Output Mixer PCM' on
+          amx sset 'Speaker' 121
+          amx sset 'Speaker DC' 5
+          amx sset 'Speaker AC' 5
+          amx sset 'Headphone' 120
+          amx sset 'Playback' 230
+          # Capture/mic path — enable ADC + input boost so recording works.
           amx sset 'Capture' 75% cap
           amx sset 'ADC PCM' 100%
           amx sset 'Left Input Mixer Boost' on
@@ -224,7 +247,9 @@ in {
         preStart = ''
           install -d -m 750 -o ${cfg.daemon.user} ${cfg.daemon.stateDir}/app
           rm -f ${cfg.daemon.stateDir}/app/*.json
-          cp -f ${appsDir}/*.json ${cfg.daemon.stateDir}/app/
+          # Copy writable: store files are 0444, but the daemon rewrites an
+          # app's JSON when it registers, so the seeded files must be 0644.
+          install -m 0644 ${appsDir}/*.json ${cfg.daemon.stateDir}/app/
           [ -e ${cfg.daemon.stateDir}/settings.json ] || \
             echo '{"apps_dir":"${cfg.daemon.stateDir}/app"}' > ${cfg.daemon.stateDir}/settings.json
         '';

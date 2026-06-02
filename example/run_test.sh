@@ -1,4 +1,4 @@
-#!/bin/bash
+#!/bin/sh
 
 # print aplay -l list output
 aplay -l
