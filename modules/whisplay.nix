@@ -160,13 +160,13 @@ in {
 
         # Seed the state directory with default app configs on first run.
         preStart = ''
-          install -d -m 750 -o ${cfg.daemon.user} ${cfg.stateDir}/app
+          install -d -m 750 -o ${cfg.daemon.user} ${cfg.daemon.stateDir}/app
           for f in ${whisplaySrc}/daemon/default_apps/*.json; do
-            dest=${cfg.stateDir}/app/$(basename "$f")
+            dest=${cfg.daemon.stateDir}/app/$(basename "$f")
             [ -e "$dest" ] || cp "$f" "$dest"
           done
-          if [ ! -e ${cfg.stateDir}/settings.json ]; then
-            echo '{"apps_dir":"${cfg.stateDir}/app"}' > ${cfg.stateDir}/settings.json
+          if [ ! -e ${cfg.daemon.stateDir}/settings.json ]; then
+            echo '{"apps_dir":"${cfg.daemon.stateDir}/app"}' > ${cfg.daemon.stateDir}/settings.json
           fi
         '';
 
