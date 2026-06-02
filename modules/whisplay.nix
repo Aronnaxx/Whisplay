@@ -81,11 +81,18 @@ in {
       boot.kernelModules = [ "i2c-dev" "snd-soc-wm8960" ];
 
       # Grant the daemon user access to hardware peripherals.
-      users.users.${cfg.daemon.user}.extraGroups =
-        lib.mkAfter [ "audio" "video" "gpio" "input" "spi" "i2c" ];
+      # mkDefault on isNormalUser/group so a caller that defines the user
+      # themselves (with different settings) doesn't hit a conflict.
+      users.users.${cfg.daemon.user} = {
+        isNormalUser = lib.mkDefault true;
+        group        = lib.mkDefault cfg.daemon.user;
+        extraGroups  = lib.mkAfter [ "audio" "video" "gpio" "input" "spi" "i2c" ];
+      };
+      users.groups.${cfg.daemon.user} = lib.mkDefault {};
 
       # ALSA: default to the WM8960 sound card.
-      sound.enable = true;
+      # sound.enable was removed in NixOS 25.05; use hardware.alsa instead.
+      hardware.alsa.enable = lib.mkDefault true;
       environment.etc."asound.conf".text = lib.mkDefault ''
         pcm.!default {
           type hw
