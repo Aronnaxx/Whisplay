@@ -4,8 +4,17 @@ version = "0.1.0"
 description = "Driver and example apps for the Whisplay HAT"
 requires-python = ">=3.8"
 dependencies = [
-    "pygame",
     "Pillow",
-    "spidev",
+    "dbus-python",
     "gpiod",
+    "numpy",
+    "pygame",
+    "PyGObject",
+    "spidev",
 ]
+
+# Whisplay is a collection of scripts run directly (not a Python library).
+# Tell setuptools not to auto-discover packages so the wheel build succeeds
+# even though the repo has multiple top-level directories.
+[tool.setuptools]
+packages = []

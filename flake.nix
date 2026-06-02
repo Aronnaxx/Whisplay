@@ -1,37 +1,44 @@
 {
-  description = "Driver and example apps for the Whisplay HAT";
+  description = "Driver, daemon, and example apps for the PiSugar Whisplay HAT";
 
   inputs = {
-    nixpkgs.url = "github:NixOS/nixpkgs/nixos-unstable";
+    nixpkgs.url = "github:NixOS/nixpkgs/nixos-25.05";
     flake-utils.url = "github:numtide/flake-utils";
   };
 
   outputs = { self, nixpkgs, flake-utils }:
-    # nixosModules is system-independent — export it outside eachDefaultSystem.
     {
-      nixosModules.default = import ./modules/whisplay.nix;
+      # Adds `whisplay` to pkgs. Mirrors the eventual nixpkgs package.
+      overlays.default = final: prev: {
+        whisplay = final.callPackage ./package.nix { };
+      };
+
+      # Self-contained NixOS module. Applies the overlay so hardware.whisplay's
+      # `package` default (pkgs.whisplay) resolves with no consumer wiring.
+      nixosModules.default = { ... }: {
+        imports = [ ./modules/whisplay.nix ];
+        nixpkgs.overlays = [ self.overlays.default ];
+      };
     }
-    //
-    flake-utils.lib.eachDefaultSystem (system:
-      let
-        pkgs = nixpkgs.legacyPackages.${system};
-      in {
-        devShells.default = pkgs.mkShell {
-          packages = [
-            pkgs.python3
-            pkgs.uv
-          ] ++ pkgs.lib.optionals pkgs.stdenv.isLinux [
-            # libgpiod is the C library that the gpiod Python package links against
+    // flake-utils.lib.eachDefaultSystem (system: let
+      pkgs = nixpkgs.legacyPackages.${system};
+    in {
+      packages.whisplay = pkgs.callPackage ./package.nix { };
+      packages.default  = pkgs.callPackage ./package.nix { };
+
+      # Local Python dev (lint/run against the working tree). The packaged build
+      # uses nixpkgs Python directly — uv is only for the dev loop here.
+      devShells.default = pkgs.mkShell {
+        packages =
+          [ pkgs.python3 pkgs.uv ]
+          ++ pkgs.lib.optionals pkgs.stdenv.isLinux [
             pkgs.libgpiod
-            # alsa-utils provides aplay, used in example/run_test.sh
             pkgs.alsa-utils
           ];
-
-          shellHook = ''
-            # Point uv at the Nix-provided Python so it doesn't pull its own
-            export UV_PYTHON="${pkgs.python3}/bin/python3"
-            echo "whisplay devshell — run 'uv sync' to install Python deps"
-          '';
-        };
-      });
+        shellHook = ''
+          export UV_PYTHON="${pkgs.python3}/bin/python3"
+          echo "whisplay devshell — run 'uv sync' to install Python deps"
+        '';
+      };
+    });
 }
