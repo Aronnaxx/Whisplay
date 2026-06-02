@@ -150,8 +150,9 @@ in {
         }
       '';
 
-      # The whisplay-* CLIs (daemon, test, games) on the system PATH.
-      environment.systemPackages = [ cfg.package ];
+      # The whisplay-* CLIs (daemon, test, games) plus the i2c debug tools the
+      # PiSugar installer ships (i2cdetect) on the system PATH.
+      environment.systemPackages = [ cfg.package pkgs.i2c-tools ];
 
       # The WM8960 powers up muted; unmute and route the DAC at every boot.
       systemd.services.wm8960-mixer-init = {

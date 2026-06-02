@@ -37,6 +37,23 @@
                 reg = <0x1a>;
                 #sound-dai-cells = <0>;
                 wlf,shared-lrclk;
+
+                /*
+                 * Mainline rk3566 leaves the I2S3 MCLK output gate off, so the
+                 * codec gets no master clock and every hw_params fails with
+                 * "wm8960 3-001a: No MCLK configured". (The Radxa vendor kernel
+                 * the PiSugar installer targets drives MCLK implicitly, which is
+                 * why the same DTS works there.) Mirror rk3566-roc-pc.dts: hand
+                 * the codec the I2S3 MCLK and route+enable the output gate.
+                 *
+                 * Numeric IDs because the overlay is compiled without the kernel
+                 * dt-bindings include path:
+                 *   I2S3_MCLKOUT_TX = 84, CLK_I2S3_2CH_TX = 409  (rk3568-cru.h)
+                 */
+                clocks = <&cru 84>;
+                clock-names = "mclk";
+                assigned-clocks = <&cru 84>;
+                assigned-clock-parents = <&cru 409>;
             };
         };
     };
