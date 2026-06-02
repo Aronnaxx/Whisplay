@@ -85,10 +85,8 @@ in {
       # themselves (with different settings) doesn't hit a conflict.
       users.users.${cfg.daemon.user} = {
         isNormalUser = lib.mkDefault true;
-        group        = lib.mkDefault cfg.daemon.user;
         extraGroups  = lib.mkAfter [ "audio" "video" "gpio" "input" "spi" "i2c" ];
       };
-      users.groups.${cfg.daemon.user} = lib.mkDefault {};
 
       # ALSA: default to the WM8960 sound card.
       # sound.enable was removed in NixOS 25.05; use hardware.alsa instead.
