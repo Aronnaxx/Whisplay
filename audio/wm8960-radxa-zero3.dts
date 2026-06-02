@@ -63,9 +63,26 @@
         target = <&i2s3_2ch>;
         __overlay__ {
             status = "okay";
-            rockchip,clk-trcm = <1>;
+            /*
+             * Full-duplex on one I2S with a shared LRCLK: RX must reuse TX's
+             * BCLK/LRCK. The MAINLINE rockchip-i2s-tdm driver spells this
+             * `rockchip,trcm-sync-tx-only` (boolean); the vendor kernel's
+             * `rockchip,clk-trcm = <1>` is a different name the mainline driver
+             * ignores — which left capture with no clock and made arecord fail
+             * with "hw_params ... -22". Only TX clock pins are routed below, so
+             * tx-only sync is required for the mic to work.
+             */
+            rockchip,trcm-sync-tx-only;
             pinctrl-names = "default";
-            pinctrl-0 = <&i2s3m0_sclk
+            /*
+             * MCLK pin is essential: the WM8960 has no crystal, so it needs the
+             * SoC to drive a master clock. Enabling I2S3_MCLKOUT_TX in the CRU
+             * (codec `clocks`/`assigned-clocks`) is not enough — without muxing
+             * i2s3m0_mclk to the header pin, MCLK never physically reaches the
+             * codec, so the DAC runs silent even though the driver/DAPM look OK.
+             */
+            pinctrl-0 = <&i2s3m0_mclk
+                         &i2s3m0_sclk
                          &i2s3m0_lrck
                          &i2s3m0_sdi
                          &i2s3m0_sdo>;
