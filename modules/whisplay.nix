@@ -28,11 +28,17 @@ let
   daemonPythonEnv = pkgs.python3.withPackages (ps:
     [ ps.pillow ps.numpy ]
     ++ lib.optionals pkgs.stdenv.isLinux (
-      [ ps.pygame ]
-      # spidev and gpiod may not be in every nixpkgs channel — add them if
-      # your channel has them, otherwise install via uv after boot.
-      ++ lib.optional (ps ? spidev) ps.spidev
-      ++ lib.optional (ps ? gpiod)  ps.gpiod
+      [ ps.pygame
+        # Bluetooth pairing agent thread needs GLib introspection typelib.
+        ps.pygobject3
+        ps.dbus-python
+      ]
+      # In nixpkgs 25.05+ the gpiod Python binding is packaged as `libgpiod`
+      # (it exposes the `gpiod` module). Fall back to `gpiod` if the channel
+      # uses the older name, so the module works on both.
+      ++ lib.optional (ps ? spidev)  ps.spidev
+      ++ lib.optional (ps ? libgpiod) ps.libgpiod
+      ++ lib.optional (ps ? gpiod && !(ps ? libgpiod)) ps.gpiod
     )
   );
 
@@ -79,6 +85,13 @@ in {
     {
       # WM8960 codec driver + I2C userspace access — needed on every platform.
       boot.kernelModules = [ "i2c-dev" "snd-soc-wm8960" ];
+
+      # NixOS does not create gpio/spi/i2c groups by default; systemd exits with
+      # code 216/GROUP if a service's SupplementaryGroups references a missing
+      # group. Declare them unconditionally so the daemon can start.
+      users.groups.gpio = {};
+      users.groups.spi  = {};
+      users.groups.i2c  = {};
 
       # Grant the daemon user access to hardware peripherals.
       # mkDefault on isNormalUser/group so a caller that defines the user
@@ -156,6 +169,8 @@ in {
       systemd.services.whisplay-daemon = {
         description = "Whisplay HAT daemon";
         wantedBy    = [ "multi-user.target" ];
+        # sound.target ensures the WM8960 ALSA card is registered before
+        # _detect_wm8960() runs at startup.
         after       = [ "sound.target" "network.target" "local-fs.target" ];
 
         # Seed the state directory with default app configs on first run.
@@ -174,7 +189,11 @@ in {
           Type                 = "simple";
           User                 = cfg.daemon.user;
           Group                = "audio";
-          SupplementaryGroups  = "audio video gpio input";
+          SupplementaryGroups  = "audio video gpio input spi i2c";
+          # Let systemd create and own the state directory so preStart can
+          # write into it without CAP_CHOWN or root privileges.
+          StateDirectory       = "whisplay-daemon";
+          StateDirectoryMode   = "0750";
           WorkingDirectory     = "${whisplaySrc}/daemon";
           ExecStart            = "${daemonPythonEnv}/bin/python3 ${whisplaySrc}/daemon/whisplay_daemon.py";
           Environment          = [
