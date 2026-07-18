@@ -75,14 +75,14 @@
             rockchip,trcm-sync-tx-only;
             pinctrl-names = "default";
             /*
-             * MCLK pin is essential: the WM8960 has no crystal, so it needs the
-             * SoC to drive a master clock. Enabling I2S3_MCLKOUT_TX in the CRU
-             * (codec `clocks`/`assigned-clocks`) is not enough — without muxing
-             * i2s3m0_mclk to the header pin, MCLK never physically reaches the
-             * codec, so the DAC runs silent even though the driver/DAPM look OK.
+             * Do NOT mux i2s3m0_mclk here: on this board that pad (GPIO3_A2,
+             * header pin 13) is the LCD's DC line (whisplay.py DC_PIN=13), not
+             * the codec's MCLK. The WM8960 is clocked from BCLK/LRCK (shared via
+             * trcm-sync-tx-only) — muxing mclk would steal the display DC pin
+             * and corrupt the I2S clock whenever the screen refreshes (which
+             * broke mic capture during the on-screen "Recording…" stage).
              */
-            pinctrl-0 = <&i2s3m0_mclk
-                         &i2s3m0_sclk
+            pinctrl-0 = <&i2s3m0_sclk
                          &i2s3m0_lrck
                          &i2s3m0_sdi
                          &i2s3m0_sdo>;

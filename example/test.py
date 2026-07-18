@@ -5,6 +5,7 @@ import os
 import signal
 import subprocess
 import sys
+import tempfile
 import threading
 import time
 from dataclasses import dataclass
@@ -23,7 +24,9 @@ from whisplay_client import create_whisplay_hardware
 DATA_DIR = os.path.join(SCRIPT_DIR, "data")
 TEST_IMAGE_PATH = os.path.join(DATA_DIR, "test.png")
 TEST_WAV_PATH = os.path.join(DATA_DIR, "test.wav")
-RECORD_FILE_PATH = os.path.join(DATA_DIR, "run_test_record.wav")
+# The mic test records here. DATA_DIR is read-only on immutable installs
+# (e.g. the Nix store), so write the capture to a writable temp dir instead.
+RECORD_FILE_PATH = os.path.join(tempfile.gettempdir(), "whisplay-run-test-record.wav")
 MAX_RECORD_SEC = 12
 INTRO_COUNTDOWN_SEC = 5
 
