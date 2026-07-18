@@ -204,19 +204,33 @@ in {
 
     # ── Raspberry Pi (Zero 2W / any 40-pin BCM board) ───────────────────────
     (lib.mkIf (cfg.platform == "raspberry-pi") {
-      # These land in /boot/firmware/config.txt (needs the rpi bootloader, which
-      # nixos-hardware's raspberry-pi modules set up).
-      boot.loader.raspberryPi.firmwareConfig = lib.mkAfter ''
-        dtparam=i2c_arm=on
-        dtparam=i2s=on
-        dtparam=spi=on
-        dtoverlay=i2s-mmap
-        dtoverlay=wm8960-soundcard
-      '';
       # RPi-specific machine-driver shim.
       boot.kernelModules = [ "snd-soc-wm8960-soundcard" ];
-      # NOTE: wm8960-soundcard.dtbo ships inside audio/WM8960-Audio-HAT.zip and
-      # must be deployed to /boot/firmware/overlays/ for the overlay to load.
+
+      # The Pi WM8960 HAT is enabled through /boot/firmware/config.txt, not via
+      # NixOS options: `boot.loader.raspberryPi.firmwareConfig` was removed from
+      # nixpkgs (nixos-25.05) and setting it is now a hard evaluation error, and
+      # the wm8960-soundcard overlay itself ships as a prebuilt .dtbo (in
+      # audio/WM8960-Audio-HAT.zip) that must be copied to
+      # /boot/firmware/overlays/. Both are image-/bootloader-specific steps that
+      # depend on how the consumer builds the Pi SD image, so this module can't
+      # apply them portably. Surface the exact requirement instead of silently
+      # doing nothing. (The Radxa Zero 3W path below needs no such step — its
+      # overlays are compiled and merged via hardware.deviceTree.overlays.)
+      warnings = [
+        ''
+          whisplay: Raspberry Pi WM8960 audio requires manual firmware setup that
+          this module cannot apply (the declarative boot.loader.raspberryPi option
+          was removed upstream). Ensure /boot/firmware/config.txt contains:
+            dtparam=i2c_arm=on
+            dtparam=i2s=on
+            dtparam=spi=on
+            dtoverlay=i2s-mmap
+            dtoverlay=wm8960-soundcard
+          and that wm8960-soundcard.dtbo (audio/WM8960-Audio-HAT.zip) is present in
+          /boot/firmware/overlays/. The Radxa Zero 3W path needs none of this.
+        ''
+      ];
     })
 
     # ── Radxa ZERO 3W (RK3566) ──────────────────────────────────────────────
