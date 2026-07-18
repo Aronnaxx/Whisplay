@@ -37,6 +37,23 @@
                 reg = <0x1a>;
                 #sound-dai-cells = <0>;
                 wlf,shared-lrclk;
+
+                /*
+                 * Mainline rk3566 leaves the I2S3 MCLK output gate off, so the
+                 * codec gets no master clock and every hw_params fails with
+                 * "wm8960 3-001a: No MCLK configured". (The Radxa vendor kernel
+                 * the PiSugar installer targets drives MCLK implicitly, which is
+                 * why the same DTS works there.) Mirror rk3566-roc-pc.dts: hand
+                 * the codec the I2S3 MCLK and route+enable the output gate.
+                 *
+                 * Numeric IDs because the overlay is compiled without the kernel
+                 * dt-bindings include path:
+                 *   I2S3_MCLKOUT_TX = 84, CLK_I2S3_2CH_TX = 409  (rk3568-cru.h)
+                 */
+                clocks = <&cru 84>;
+                clock-names = "mclk";
+                assigned-clocks = <&cru 84>;
+                assigned-clock-parents = <&cru 409>;
             };
         };
     };
@@ -46,8 +63,25 @@
         target = <&i2s3_2ch>;
         __overlay__ {
             status = "okay";
-            rockchip,clk-trcm = <1>;
+            /*
+             * Full-duplex on one I2S with a shared LRCLK: RX must reuse TX's
+             * BCLK/LRCK. The MAINLINE rockchip-i2s-tdm driver spells this
+             * `rockchip,trcm-sync-tx-only` (boolean); the vendor kernel's
+             * `rockchip,clk-trcm = <1>` is a different name the mainline driver
+             * ignores — which left capture with no clock and made arecord fail
+             * with "hw_params ... -22". Only TX clock pins are routed below, so
+             * tx-only sync is required for the mic to work.
+             */
+            rockchip,trcm-sync-tx-only;
             pinctrl-names = "default";
+            /*
+             * Do NOT mux i2s3m0_mclk here: on this board that pad (GPIO3_A2,
+             * header pin 13) is the LCD's DC line (whisplay.py DC_PIN=13), not
+             * the codec's MCLK. The WM8960 is clocked from BCLK/LRCK (shared via
+             * trcm-sync-tx-only) — muxing mclk would steal the display DC pin
+             * and corrupt the I2S clock whenever the screen refreshes (which
+             * broke mic capture during the on-screen "Recording…" stage).
+             */
             pinctrl-0 = <&i2s3m0_sclk
                          &i2s3m0_lrck
                          &i2s3m0_sdi
