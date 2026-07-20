@@ -204,33 +204,19 @@ in {
 
     # ── Raspberry Pi (Zero 2W / any 40-pin BCM board) ───────────────────────
     (lib.mkIf (cfg.platform == "raspberry-pi") {
-      # RPi-specific machine-driver shim.
+      # Kernel-side WM8960 support (the codec + RPi machine driver). The common
+      # section above already loads i2c-dev + snd-soc-wm8960.
       boot.kernelModules = [ "snd-soc-wm8960-soundcard" ];
 
-      # The Pi WM8960 HAT is enabled through /boot/firmware/config.txt, not via
-      # NixOS options: `boot.loader.raspberryPi.firmwareConfig` was removed from
-      # nixpkgs (nixos-25.05) and setting it is now a hard evaluation error, and
-      # the wm8960-soundcard overlay itself ships as a prebuilt .dtbo (in
-      # audio/WM8960-Audio-HAT.zip) that must be copied to
-      # /boot/firmware/overlays/. Both are image-/bootloader-specific steps that
-      # depend on how the consumer builds the Pi SD image, so this module can't
-      # apply them portably. Surface the exact requirement instead of silently
-      # doing nothing. (The Radxa Zero 3W path below needs no such step — its
-      # overlays are compiled and merged via hardware.deviceTree.overlays.)
-      warnings = [
-        ''
-          whisplay: Raspberry Pi WM8960 audio requires manual firmware setup that
-          this module cannot apply (the declarative boot.loader.raspberryPi option
-          was removed upstream). Ensure /boot/firmware/config.txt contains:
-            dtparam=i2c_arm=on
-            dtparam=i2s=on
-            dtparam=spi=on
-            dtoverlay=i2s-mmap
-            dtoverlay=wm8960-soundcard
-          and that wm8960-soundcard.dtbo (audio/WM8960-Audio-HAT.zip) is present in
-          /boot/firmware/overlays/. The Radxa Zero 3W path needs none of this.
-        ''
-      ];
+      # NOTE: enabling the WM8960 on a Pi is a *firmware*-stage step — the
+      # `dtparam=i2c_arm=on/i2s=on/spi=on` + `dtoverlay=wm8960-soundcard` lines in
+      # /boot/firmware/config.txt, plus the wm8960-soundcard.dtbo in the firmware
+      # overlays/ dir (both shipped by raspberrypifw). That is specific to how the
+      # consumer builds the SD image (sdImage.populateFirmwareCommands, u-boot vs
+      # firmware boot, model), so it is the image's responsibility, not this
+      # module's. The old boot.loader.raspberryPi option that used to do it was
+      # removed in nixos-25.05. (The Radxa path needs none of this — its overlays
+      # are compiled and merged via hardware.deviceTree.overlays above.)
     })
 
     # ── Radxa ZERO 3W (RK3566) ──────────────────────────────────────────────
